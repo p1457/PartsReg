@@ -1,0 +1,39 @@
+/* Installatörs Delregister - Custom Styles */
+
+/* Smooth transitions for interactive elements */
+button, input, label {
+    transition: all 0.2s ease;
+}
+
+/* Custom scrollbar for parts list */
+.parts-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.parts-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.parts-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.parts-list::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* Pulse animation for voice recording */
+@keyframes pulse-recording {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.recording-pulse {
+    animation: pulse-recording 1s ease-in-out infinite;
+}
