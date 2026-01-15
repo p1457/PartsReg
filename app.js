@@ -44,8 +44,8 @@ function renderHome() {
         <div class="space-y-4">
             <h2 class="text-2xl font-bold text-gray-800">Ny rapportering</h2>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Datum</label><input type="date" id="projectDate" value="${state.currentProject.date}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Kund</label><input type="text" id="customerName" value="${state.currentProject.customer}" placeholder="Ange kundnamn" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Projekt</label><input type="text" id="projectName" value="${state.currentProject.project}" placeholder="Ange projektnummer/namn" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Kund</label><input type="text" id="customerName" value="${state.currentProject.customer}" placeholder="Ange kundnamn" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter')tryStartProject()"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Projekt</label><input type="text" id="projectName" value="${state.currentProject.project}" placeholder="Ange projektnummer/namn" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter')tryStartProject()"></div>
             <button onclick="startProject()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">Registrera artiklar</button>
         </div>
     `;
@@ -82,7 +82,7 @@ function renderParts() {
             <div class="bg-white p-4 rounded-lg border border-gray-200">
                 <h3 class="font-medium text-gray-800 mb-3">Lägg till del</h3>
                 <div class="flex gap-2 mb-3">
-                    <input type="text" id="partDescription" value="${state.partDescription}" placeholder="Beskriv delen" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" oninput="state.partDescription=this.value">
+                    <input type="text" id="partDescription" value="${state.partDescription}" placeholder="Beskriv delen" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" oninput="state.partDescription=this.value" onkeydown="if(event.key==='Enter')matchPartWithAI()">
                     <button onclick="toggleVoiceRecognition()" class="p-2 rounded-lg ${state.isListening ? 'bg-red-500' : 'bg-gray-200 hover:bg-gray-300'}"><svg class="w-5 h-5 ${state.isListening ? 'text-white animate-pulse' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg></button>
                 </div>
                 <button onclick="matchPartWithAI()" ${state.isProcessing ? 'disabled' : ''} class="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 mb-3">${state.isProcessing ? 'Söker matchning...' : 'Hitta artikel'}</button>
@@ -197,6 +197,12 @@ function clearPartsList() {
 function clearApiKey() {
     if (!confirm('Är du säker på att du vill ta bort API-nyckeln?')) return;
     document.getElementById('apiKey').value = '';
+}
+
+function tryStartProject() {
+    const customer = document.getElementById('customerName').value;
+    const project = document.getElementById('projectName').value;
+    if (customer && project) startProject();
 }
 
 function startProject() {
