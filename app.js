@@ -31,6 +31,11 @@ function render() {
         </div>
         <div class="text-center text-sm text-gray-600"><p>PartsReg v0.1</p></div>
     `;
+    // Auto-fokusera beskrivningsfältet på parts-skärmen
+    if (state.screen === 'parts') {
+        const descField = document.getElementById('partDescription');
+        if (descField) descField.focus();
+    }
 }
 
 function renderContent() {
