@@ -56,19 +56,22 @@ function renderParts() {
 
     let suggestionsHTML = '';
     if (hasSuggestions) {
+        const needsScroll = state.suggestedParts.length > 3;
         suggestionsHTML = `
             <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-3">
-                <p class="text-sm font-medium text-yellow-800 mb-2">Flera möjliga matchningar hittades. Välj rätt artikel:</p>
-                ${state.suggestedParts.map((part, index) => `
-                    <label class="flex items-start p-2 hover:bg-yellow-100 rounded cursor-pointer mb-2 border border-transparent hover:border-yellow-300">
-                        <input type="radio" name="partChoice" value="${index}" onclick="selectPart(${index})" class="mt-1 mr-3">
-                        <div class="flex-1">
-                            <p class="font-bold text-gray-900">${part.articleNumber}</p>
-                            <p class="text-sm text-gray-700">${part.name}</p>
-                            <p class="text-xs text-gray-600">Säkerhet: ${part.confidence}</p>
-                        </div>
-                    </label>
-                `).join('')}
+                <p class="text-sm font-medium text-yellow-800 mb-2">Flera möjliga matchningar hittades (${state.suggestedParts.length} st). Välj rätt artikel:</p>
+                <div class="${needsScroll ? 'max-h-64 overflow-y-auto' : ''}">
+                    ${state.suggestedParts.map((part, index) => `
+                        <label class="flex items-start p-2 hover:bg-yellow-100 rounded cursor-pointer mb-2 border border-transparent hover:border-yellow-300">
+                            <input type="radio" name="partChoice" value="${index}" onclick="selectPart(${index})" class="mt-1 mr-3">
+                            <div class="flex-1">
+                                <p class="font-bold text-gray-900">${part.articleNumber}</p>
+                                <p class="text-sm text-gray-700">${part.name}</p>
+                                <p class="text-xs text-gray-600">Säkerhet: ${part.confidence}</p>
+                            </div>
+                        </label>
+                    `).join('')}
+                </div>
             </div>
         `;
     }
@@ -94,9 +97,16 @@ function renderParts() {
                         <p class="text-sm text-green-700">${state.suggestedPart.name}</p>
                         <p class="text-xs text-green-600 mt-1">Säkerhet: ${state.suggestedPart.confidence}</p>
                     </div>
-                    <div class="flex gap-2 items-center">
-                        <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Antal</label><input type="number" id="quantity" value="${state.quantity}" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg" oninput="state.quantity=this.value"></div>
-                        <button onclick="addPartToProject()" class="mt-6 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></button>
+                    <div class="flex gap-2 items-end">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Antal</label>
+                            <div class="flex items-center gap-1">
+                                <button onclick="adjustQuantity(-1)" class="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg></button>
+                                <input type="number" id="quantity" value="${state.quantity}" min="1" class="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center" oninput="state.quantity=parseInt(this.value)||1" onfocus="this.select()">
+                                <button onclick="adjustQuantity(1)" class="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></button>
+                            </div>
+                        </div>
+                        <button onclick="addPartToProject()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">Lägg till</button>
                     </div>
                 ` : ''}
             </div>
@@ -315,7 +325,7 @@ async function matchPartWithAI() {
             body: JSON.stringify({
                 model: 'gpt-4o-mini',
                 messages: [
-                    { role: 'system', content: 'Du är expert på installatörsmaterial. Matcha beskrivning mot artikellista. Om beskrivningen är specifik nog för EN tydlig matchning (t.ex. "90 vinkel 50mm"), returnera: {"matches":[{"articleNumber":"3","name":"90 vinkel 50 mm","confidence":"high"}]}. Om beskrivningen är bred och matchar flera artiklar (t.ex. bara "vinkel"), returnera ALLA matchande artiklar (2-3 st max) sorterade efter sannolikhet: {"matches":[{"articleNumber":"3","name":"90 vinkel 50 mm","confidence":"medium"},{"articleNumber":"5","name":"45 vinkel 50mm","confidence":"medium"}]}. Om ingen match alls: {"matches":[]}.' },
+                    { role: 'system', content: 'Du är expert på installatörsmaterial. Matcha beskrivning mot artikellista. Om beskrivningen är specifik nog för EN tydlig matchning (t.ex. "90 vinkel 50mm"), returnera: {"matches":[{"articleNumber":"3","name":"90 vinkel 50 mm","confidence":"high"}]}. Om beskrivningen är bred och matchar flera artiklar (t.ex. bara "vinkel"), returnera ALLA matchande artiklar sorterade efter sannolikhet: {"matches":[{"articleNumber":"3","name":"90 vinkel 50 mm","confidence":"medium"},{"articleNumber":"5","name":"45 vinkel 50mm","confidence":"medium"}]}. Om ingen match alls: {"matches":[]}.' },
                     { role: 'user', content: `Artikellista:\n${JSON.stringify(state.partsList)}\n\nBeskrivning: "${desc}"\n\nVilken/vilka artiklar matchar?` }
                 ],
                 temperature: 0.3
@@ -332,7 +342,7 @@ async function matchPartWithAI() {
                     state.suggestedPart = result.matches[0];
                     state.suggestedParts = [];
                 } else {
-                    state.suggestedParts = result.matches.slice(0, 3);
+                    state.suggestedParts = result.matches;
                     state.suggestedPart = null;
                 }
             } else {
@@ -356,6 +366,12 @@ function selectPart(index) {
     state.suggestedPart = state.suggestedParts[index];
     state.suggestedParts = [];
     render();
+}
+
+function adjustQuantity(delta) {
+    const newQty = Math.max(1, state.quantity + delta);
+    state.quantity = newQty;
+    document.getElementById('quantity').value = newQty;
 }
 
 function addPartToProject() {
