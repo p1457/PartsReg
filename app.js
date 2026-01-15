@@ -12,7 +12,9 @@ let state = {
     suggestedPart: null,
     suggestedParts: [],
     isListening: false,
-    isProcessing: false
+    isProcessing: false,
+    mediaRecorder: null,
+    audioChunks: []
 };
 
 function render() {
@@ -81,7 +83,7 @@ function renderParts() {
                 <h3 class="font-medium text-gray-800 mb-3">Lägg till del</h3>
                 <div class="flex gap-2 mb-3">
                     <input type="text" id="partDescription" value="${state.partDescription}" placeholder="Beskriv delen" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" oninput="state.partDescription=this.value">
-                    <button onclick="startVoiceRecognition()" class="p-2 rounded-lg ${state.isListening ? 'bg-red-500' : 'bg-gray-200 hover:bg-gray-300'}"><svg class="w-5 h-5 ${state.isListening ? 'text-white animate-pulse' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg></button>
+                    <button onclick="toggleVoiceRecognition()" class="p-2 rounded-lg ${state.isListening ? 'bg-red-500' : 'bg-gray-200 hover:bg-gray-300'}"><svg class="w-5 h-5 ${state.isListening ? 'text-white animate-pulse' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg></button>
                 </div>
                 <button onclick="matchPartWithAI()" ${state.isProcessing ? 'disabled' : ''} class="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 mb-3">${state.isProcessing ? 'Söker matchning...' : 'Hitta artikel'}</button>
                 ${suggestionsHTML}
@@ -118,7 +120,14 @@ function renderSettings() {
     return `
         <div class="space-y-4">
             <h2 class="text-2xl font-bold text-gray-800">Inställningar</h2>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API-nyckel</label><input type="password" id="apiKey" value="${state.apiKey}" placeholder="sk-..." class="w-full px-3 py-2 border border-gray-300 rounded-lg"><p class="text-xs text-gray-500 mt-1">Hämta från platform.openai.com</p></div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API-nyckel</label>
+                <input type="password" id="apiKey" value="${state.apiKey}" placeholder="sk-..." class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-gray-500">Hämta från platform.openai.com. Dela aldrig din nyckel med andra.</p>
+                    <button onclick="clearApiKey()" class="text-xs text-red-600 hover:text-red-800 hover:underline">Radera API-nyckel</button>
+                </div>
+            </div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">E-postmottagare</label><input type="text" id="emailRecipients" value="${state.emailRecipients}" placeholder="namn@foretag.se" class="w-full px-3 py-2 border border-gray-300 rounded-lg"><p class="text-xs text-gray-500 mt-1">Separera flera adresser med komma</p></div>
             <div class="border-t border-gray-200 pt-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Artikellista</label>
@@ -126,9 +135,27 @@ function renderSettings() {
                     <div class="text-center"><svg class="w-6 h-6 mx-auto mb-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><span class="text-sm font-medium text-blue-600">Ladda upp Excel-fil (.xlsx, .xls)</span><p class="text-xs text-gray-500 mt-1">Kolumner: "Artikelnummer" och "Beskrivning"</p></div>
                     <input type="file" accept=".xlsx,.xls" onchange="handleFileUpload(event)" class="hidden">
                 </label>
-                <div class="relative my-3"><div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300"></div></div><div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-500">eller redigera manuellt</span></div></div>
-                <textarea id="partsList" rows="6" placeholder='[{"articleNumber":"12345","name":"Böj 90° 22mm"}]' class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm">${JSON.stringify(state.partsList, null, 2)}</textarea>
-                <p class="text-xs text-gray-500 mt-1">${state.partsList.length} artiklar</p>
+                ${state.partsList.length > 0 ? `
+                <div class="mt-3 border border-gray-300 rounded-lg overflow-hidden">
+                    <div class="max-h-48 overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-100 sticky top-0">
+                                <tr>
+                                    <th class="text-left px-3 py-2 font-medium text-gray-700">Artikelnr</th>
+                                    <th class="text-left px-3 py-2 font-medium text-gray-700">Beskrivning</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                ${state.partsList.map(p => `<tr class="hover:bg-gray-50"><td class="px-3 py-1.5 text-gray-600">${p.articleNumber}</td><td class="px-3 py-1.5 text-gray-800">${p.name}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                    <p class="text-xs text-gray-500">${state.partsList.length} artiklar</p>
+                    <button onclick="clearPartsList()" class="text-xs text-red-600 hover:text-red-800 hover:underline">Töm lista</button>
+                </div>
+                ` : `<p class="text-sm text-gray-500 mt-3">Ingen artikellista inläst. Ladda upp en Excel-fil för att komma igång.</p>`}
             </div>
             <div class="flex gap-2">
                 <button onclick="saveSettings()" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700">Spara</button>
@@ -152,19 +179,24 @@ function cancelSettings() {
 function saveSettings() {
     state.apiKey = document.getElementById('apiKey').value;
     state.emailRecipients = document.getElementById('emailRecipients').value;
-    try {
-        const txt = document.getElementById('partsList').value;
-        state.partsList = JSON.parse(txt);
-        localStorage.setItem('openai_api_key', state.apiKey);
-        localStorage.setItem('email_recipients', state.emailRecipients);
-        localStorage.setItem('parts_list', txt);
-        localStorage.setItem('previous_screen', state.previousScreen || 'home');
-        alert('Inställningar sparade!');
-        state.screen = state.previousScreen || (state.currentProject.customer ? 'parts' : 'home');
-        render();
-    } catch (e) {
-        alert('Fel i artikellistan. Kontrollera JSON-formatet.');
-    }
+    localStorage.setItem('openai_api_key', state.apiKey);
+    localStorage.setItem('email_recipients', state.emailRecipients);
+    localStorage.setItem('parts_list', JSON.stringify(state.partsList));
+    localStorage.setItem('previous_screen', state.previousScreen || 'home');
+    alert('Inställningar sparade!');
+    state.screen = state.previousScreen || (state.currentProject.customer ? 'parts' : 'home');
+    render();
+}
+
+function clearPartsList() {
+    if (!confirm('Är du säker på att du vill tömma artikellistan?')) return;
+    state.partsList = [];
+    render();
+}
+
+function clearApiKey() {
+    if (!confirm('Är du säker på att du vill ta bort API-nyckeln?')) return;
+    document.getElementById('apiKey').value = '';
 }
 
 function startProject() {
@@ -193,20 +225,73 @@ function resetProject() {
     }
 }
 
-function startVoiceRecognition() {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        alert('Röststöd stöds inte. Prova Chrome på Android.');
+async function toggleVoiceRecognition() {
+    // Om vi redan spelar in, stoppa och skicka till Whisper
+    if (state.isListening && state.mediaRecorder) {
+        state.mediaRecorder.stop();
         return;
     }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SR();
-    rec.lang = 'sv-SE';
-    rec.continuous = false;
-    rec.onstart = () => { state.isListening = true; render(); };
-    rec.onresult = (e) => { state.partDescription = e.results[0][0].transcript; state.isListening = false; render(); };
-    rec.onerror = (e) => { state.isListening = false; alert(e.error === 'not-allowed' ? 'Ge tillåtelse till mikrofonen' : 'Röstfel: ' + e.error); render(); };
-    rec.onend = () => { state.isListening = false; render(); };
-    try { rec.start(); } catch (e) { state.isListening = false; alert('Kunde inte starta röst'); render(); }
+
+    // Kontrollera att API-nyckel finns
+    if (!state.apiKey) {
+        alert('Ange API-nyckel i inställningarna för att använda röstinspelning.');
+        showSettings();
+        return;
+    }
+
+    // Starta inspelning
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.audioChunks = [];
+        state.mediaRecorder = new MediaRecorder(stream);
+
+        state.mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) state.audioChunks.push(e.data);
+        };
+
+        state.mediaRecorder.onstop = async () => {
+            // Stoppa mikrofonen
+            stream.getTracks().forEach(track => track.stop());
+            state.isListening = false;
+            state.isProcessing = true;
+            render();
+
+            // Skicka till Whisper
+            try {
+                const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append('file', audioBlob, 'recording.webm');
+                formData.append('model', 'whisper-1');
+                formData.append('language', 'sv');
+
+                const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${state.apiKey}` },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || 'Whisper API-fel');
+                }
+
+                const result = await response.json();
+                state.partDescription = result.text;
+            } catch (err) {
+                alert('Kunde inte tolka röst: ' + err.message);
+            }
+
+            state.isProcessing = false;
+            state.mediaRecorder = null;
+            render();
+        };
+
+        state.mediaRecorder.start();
+        state.isListening = true;
+        render();
+    } catch (err) {
+        alert(err.name === 'NotAllowedError' ? 'Ge tillåtelse till mikrofonen' : 'Kunde inte starta mikrofon: ' + err.message);
+    }
 }
 
 async function matchPartWithAI() {
@@ -302,21 +387,48 @@ function handleFileUpload(e) {
             const wb = XLSX.read(data, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const json = XLSX.utils.sheet_to_json(ws);
+            // Hämta kolumnnamn från första raden för fallback
+            const columns = Object.keys(json[0] || {});
+
             const parts = json.map(r => {
-                const num = r['Artikelnummer'] || r['artikelnummer'] || r['ArticleNumber'] || r['Artikel'] || r['Nr'];
-                const name = r['Beskrivning'] || r['beskrivning'] || r['Namn'] || r['namn'] || r['Name'] || r['Description'];
+                // Sök artikelnummer - vanligaste först, sedan fallback till första kolumnen
+                const num = r['Artikelnr'] || r['artikelnr'] || r['Artikelnummer'] || r['artikelnummer'] ||
+                            r['ArtNr'] || r['artnr'] || r['Art.nr'] || r['art.nr'] ||
+                            r['ArticleNumber'] || r['Artikel'] || r['Nr'] || r['nr'] ||
+                            (columns[0] ? r[columns[0]] : null);
+
+                // Sök beskrivning - vanligaste först, sedan fallback till andra kolumnen
+                const name = r['Artikelbeskrivning'] || r['artikelbeskrivning'] || r['Beskrivning'] || r['beskrivning'] ||
+                             r['Benämning'] || r['benämning'] || r['Namn'] || r['namn'] ||
+                             r['Name'] || r['Description'] || r['description'] ||
+                             (columns[1] ? r[columns[1]] : null);
+
                 if (!num || !name) return null;
-                return { articleNumber: String(num), name: String(name) };
+                return { articleNumber: String(num).trim(), name: String(name).trim() };
             }).filter(p => p !== null);
             if (parts.length === 0) {
                 alert('Inga artiklar hittades. Kontrollera kolumnnamn.');
                 return;
             }
+
+            // Hitta vilka artikelnummer som redan finns
+            const existingNums = new Set(state.partsList.map(p => p.articleNumber));
+            const newParts = parts.filter(p => !existingNums.has(p.articleNumber));
+            const skippedCount = parts.length - newParts.length;
+
+            // Kontrollera dubbletter inom importfilen
             const nums = parts.map(p => p.articleNumber);
-            const dups = [...new Set(nums.filter((n, i) => nums.indexOf(n) !== i))];
-            if (dups.length > 0 && !confirm(`⚠️ ${dups.length} dubbletter hittade:\n${dups.slice(0,10).join(', ')}\n\nFortsätt?`)) return;
-            document.getElementById('partsList').value = JSON.stringify(parts, null, 2);
-            alert(`✓ ${parts.length} artiklar inlästa!${dups.length > 0 ? `\n⚠️ ${dups.length} dubbletter` : ''}`);
+            const dupsInFile = [...new Set(nums.filter((n, i) => nums.indexOf(n) !== i))];
+
+            // Slå ihop listorna och uppdatera state
+            state.partsList = [...state.partsList, ...newParts];
+
+            let msg = `✓ ${newParts.length} nya artiklar tillagda!`;
+            if (skippedCount > 0) msg += `\n⏭️ ${skippedCount} redan befintliga hoppades över`;
+            if (dupsInFile.length > 0) msg += `\n⚠️ ${dupsInFile.length} dubbletter i filen`;
+            msg += `\n\nTotalt: ${state.partsList.length} artiklar`;
+            alert(msg);
+            render();
         } catch (err) {
             alert('Kunde inte läsa Excel-fil');
         }
