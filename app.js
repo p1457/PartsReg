@@ -324,16 +324,19 @@ async function matchPartWithAI() {
     state.isProcessing = true;
     render();
     try {
+        // Kompakt artikellista: "artikelnr | beskrivning" per rad
+        const compactList = state.partsList.map(p => `${p.articleNumber} | ${p.name}`).join('\n');
+
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.apiKey}` },
             body: JSON.stringify({
                 model: 'gpt-4o-mini',
                 messages: [
-                    { role: 'system', content: 'Du är expert på installatörsmaterial. Matcha beskrivning mot artikellista. Om beskrivningen är specifik nog för EN tydlig matchning (t.ex. "90 vinkel 50mm"), returnera: {"matches":[{"articleNumber":"3","name":"90 vinkel 50 mm","confidence":"high"}]}. Om beskrivningen är bred och matchar flera artiklar (t.ex. bara "vinkel"), returnera ALLA matchande artiklar sorterade efter sannolikhet: {"matches":[{"articleNumber":"3","name":"90 vinkel 50 mm","confidence":"medium"},{"articleNumber":"5","name":"45 vinkel 50mm","confidence":"medium"}]}. Om ingen match alls: {"matches":[]}.' },
-                    { role: 'user', content: `Artikellista:\n${JSON.stringify(state.partsList)}\n\nBeskrivning: "${desc}"\n\nVilken/vilka artiklar matchar?` }
+                    { role: 'system', content: 'Du är expert på installatörsmaterial. Matcha beskrivning mot artikellista. Returnera ALLTID upp till 5 relevanta träffar om de finns, sorterade med bästa träffen först. Använd confidence: "high" för exakt match, "medium" för trolig match, "low" för möjlig match. Svara endast med JSON: {"matches":[{"articleNumber":"123","name":"Beskrivning","confidence":"high/medium/low"}]}. Om ingen match: {"matches":[]}.' },
+                    { role: 'user', content: `Artikellista:\n${compactList}\n\nBeskrivning: "${desc}"` }
                 ],
-                temperature: 0.3
+                temperature: 0.1
             })
         });
         const data = await res.json();
